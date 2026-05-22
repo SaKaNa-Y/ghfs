@@ -7,6 +7,7 @@ const props = withDefaults(defineProps<{
 
 const activeId = useActiveProjectId()
 const state = useAppState()
+const rpc = useRpc()
 const isDark = useDark()
 const hub = useHubState()
 const hubUi = useHubUiState()
@@ -53,10 +54,22 @@ const showHubBack = computed(() => isHubMode.value && props.mode === 'project')
 const onRecentPage = computed(() => route.path === '/recent')
 const onQueuePage = computed(() => route.path === '/queue')
 
+const forceSyncDialogOpen = ref(false)
+
+function onSyncClick(event: MouseEvent, execute: () => void) {
+  if (event.shiftKey) {
+    forceSyncDialogOpen.value = true
+    return
+  }
+  execute()
+}
+
 const syncTooltip = computed(() => {
   if (props.mode === 'hub')
     return hubUi.syncingAll.value ? 'Syncing all projects…' : 'Sync all projects'
-  return hasToken.value ? 'Sync from GitHub' : 'No GitHub token available'
+  if (!hasToken.value)
+    return 'No GitHub token available'
+  return 'Sync from GitHub (⇧ for force sync)'
 })
 
 const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : state.syncing.value))
@@ -241,7 +254,7 @@ const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : 
         :tooltip="syncTooltip"
         :disabled="syncing || !hasToken || disabled"
         :spinning="syncing"
-        @click="execute"
+        @click="(e: MouseEvent) => onSyncClick(e, execute)"
       />
     </UiWithCommand>
     <UiWithCommand v-else v-slot="{ execute }" command="hub.sync-all" placement="badge">
@@ -308,5 +321,7 @@ const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : 
         @click="execute"
       />
     </UiWithCommand>
+
+    <PanelForceSyncDialog v-if="mode === 'project'" v-model:open="forceSyncDialogOpen" />
   </header>
 </template>

@@ -53,7 +53,7 @@ const hasAnyActivity = computed(() =>
 
     <section v-if="hasAnyActivity" class="px-6 pb-6">
       <PanelDetailTimeline
-        :item-number="item.number"
+        :item="item"
         :comments="comments"
         :timeline="timeline"
         :pending-comments="pendingComments"

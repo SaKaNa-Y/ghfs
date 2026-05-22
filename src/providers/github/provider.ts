@@ -754,6 +754,7 @@ function mapIssue(issue: GitHubIssue): ProviderItem {
     title: issue.title,
     body: issue.body,
     author: issue.user?.login ?? null,
+    ...(issue.user?.avatar_url ? { authorAvatarUrl: issue.user.avatar_url } : {}),
     labels: issue.labels
       .map((label) => {
         if (typeof label === 'string')
@@ -780,6 +781,7 @@ function mapComment(comment: GitHubComment): ProviderComment {
     createdAt: comment.created_at,
     updatedAt: comment.updated_at,
     author: comment.user?.login ?? null,
+    ...(comment.user?.avatar_url ? { authorAvatarUrl: comment.user.avatar_url } : {}),
     reactions: mapReactions(comment.reactions),
   }
 }
@@ -826,11 +828,13 @@ function mapTimelineEvent(event: GitHubTimelineEvent): ProviderTimelineEvent | n
 
   const id = event.id != null ? String(event.id) : `${eventName}:${createdAt}`
   const actor = event.actor?.login ?? event.user?.login ?? null
+  const actorAvatarUrl = event.actor?.avatar_url ?? event.user?.avatar_url ?? undefined
   const base: ProviderTimelineEvent = {
     id,
     kind: 'unknown',
     createdAt,
     actor,
+    ...(actorAvatarUrl ? { actorAvatarUrl } : {}),
   }
 
   switch (eventName) {
@@ -1164,6 +1168,7 @@ interface GitHubIssue {
   body: string | null
   user: {
     login: string
+    avatar_url?: string | null
   } | null
   labels: Array<string | { name?: string | null }>
   assignees: Array<{ login: string }> | null
@@ -1181,6 +1186,7 @@ interface GitHubComment {
   updated_at: string
   user: {
     login: string
+    avatar_url?: string | null
   } | null
   reactions?: GitHubReactions | null
 }
@@ -1236,8 +1242,8 @@ interface GitHubTimelineEvent {
   event?: string
   created_at?: string
   submitted_at?: string
-  actor?: { login: string } | null
-  user?: { login: string } | null
+  actor?: { login: string, avatar_url?: string | null } | null
+  user?: { login: string, avatar_url?: string | null } | null
   label?: { name: string, color?: string | null }
   assignee?: { login: string } | null
   requested_reviewer?: { login: string } | null

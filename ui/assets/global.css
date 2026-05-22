@@ -9,7 +9,16 @@ body,
 
 html {
   --at-apply: bg-base font-sans;
+  color-scheme: light;
   scrollbar-gutter: stable;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-width: thin;
 }
 
 body {

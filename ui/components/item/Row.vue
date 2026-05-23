@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ListItem } from '../../types/list-item'
+import { isUnchangedSince } from '../../composables/useCardsMode'
 
 const props = withDefaults(defineProps<{
   item: ListItem
@@ -13,6 +14,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [item: ListItem]
 }>()
+
+const seenHistory = useSeenHistory()
 
 const rawItem = computed(() => props.item.raw?.data.item)
 const rawPull = computed(() => props.item.raw?.data.pull)
@@ -32,6 +35,18 @@ const iconPull = computed(() => {
 
 const labels = computed(() => props.item.labels ?? [])
 const assignees = computed(() => props.item.assignees ?? [])
+
+/**
+ * True when the item has activity the user hasn't yet caught up on — either
+ * they've never opened it, or something has changed since `lastSeenAt`.
+ * Drives the unread dot in the top-right and the bold title weight.
+ */
+const hasUnseenActivity = computed(() => {
+  const seen = seenHistory.getSeenEntry(`${props.item.projectId}#${props.item.number}`)
+  if (!seen)
+    return true
+  return !isUnchangedSince(props.item, seen)
+})
 
 // Pending ops are per-active-project (via useAppState). They only make sense
 // when this row belongs to the active project — i.e. when `raw` is present.
@@ -65,6 +80,7 @@ const bodySnippetHtml = computed(() => {
     :class="props.selected
       ? 'bg-primary-500/8 dark:bg-primary-400/8 border-l-2 border-l-primary-500 dark:border-l-primary-400 pl-[10px]'
       : 'hover:bg-active'"
+    :data-unseen="hasUnseenActivity || undefined"
     data-testid="item-row"
     :data-item-number="item.number"
     @click="emit('select', item)"
@@ -78,6 +94,14 @@ const bodySnippetHtml = computed(() => {
         :created-index="item.activityCreatedIndex"
       />
     </div>
+
+    <span
+      v-if="hasUnseenActivity"
+      class="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary-500 dark:bg-primary-400"
+      aria-label="Unseen"
+      data-testid="item-row-unseen-dot"
+    />
+
 
     <div
       v-if="showRepoName"
@@ -104,8 +128,11 @@ const bodySnippetHtml = computed(() => {
       <div class="flex-1 min-w-0">
         <div class="flex items-baseline gap-2 flex-wrap">
           <span
-            class="font-medium truncate"
-            :class="{ 'italic': pending.pendingTitle.value }"
+            class="truncate"
+            :class="[
+              hasUnseenActivity ? 'font-semibold' : 'font-normal',
+              { italic: pending.pendingTitle.value },
+            ]"
             v-html="titleHtml"
           />
           <span

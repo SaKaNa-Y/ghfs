@@ -1,5 +1,5 @@
 import type { PendingOp } from '../../execute/types'
-import type { ExecuteTriggerOptions, InitialPayload, QueueState, RemoteStatus, RepoMeta, SyncTriggerOptions, UiState } from '../../server/types'
+import type { ExecuteTriggerOptions, InitialPayload, QueueState, RemoteStatus, RepoMeta, SeenEntry, SyncTriggerOptions, UiState } from '../../server/types'
 import type { ActivityResult } from '../../sync/activity'
 import type { SyncProgressSnapshot, SyncStage, SyncSummary } from '../../sync/contracts'
 import type { ExecutionResult } from '../../types/execution'
@@ -73,6 +73,72 @@ export interface HubRecentItem {
   labels: string[]
 }
 
+export interface HubTodoItem {
+  projectId: string
+  repo: string
+  kind: 'issue' | 'pull'
+  number: number
+  title: string
+  state: 'open' | 'closed'
+  updatedAt: string
+  author: string | null
+  authorAvatarUrl?: string
+  labels: string[]
+}
+
+export interface CardRef {
+  projectId: string
+  repo: string
+  kind: 'issue' | 'pull'
+  number: number
+  title: string
+  authorAvatarUrl?: string
+  author?: string | null
+}
+
+export interface CardsSource {
+  /** Human-readable label, displayed in the cards page header. */
+  label: string
+  /** When set, the header renders a ProjectIcon + this repo's owner/name. */
+  project?: { id: string, repo: string }
+}
+
+export type PilePick = 'recent' | 'random' | 'stale'
+
+/**
+ * Which kinds of items to include in the pile.
+ * - `issue` / `pull` restrict to that kind
+ * - `all` includes both
+ */
+export type PileKindFilter = 'issue' | 'pull' | 'all'
+
+export interface PileOptions {
+  size: number
+  pick: PilePick
+  kind: PileKindFilter
+  excludeBots: boolean
+  excludeSelfInteracted: boolean
+  /**
+   * Skip items the user has already triaged in a previous pile, until they
+   * change upstream (new comment, body edit, timeline event). The "seen"
+   * fingerprint is stored under `ui.json#seenHistory`.
+   */
+  excludeSeen: boolean
+}
+
+export interface QueuedCardOp {
+  projectId: string
+  opId: string
+}
+
+export interface CardsPileState {
+  pile: CardRef[]
+  index: number
+  processedOps: QueuedCardOp[]
+  source: CardsSource
+  options: PileOptions
+}
+
 export interface HubQueueGroup {
   projectId: string
   repo: string
@@ -131,10 +197,12 @@ export interface GhfsServerFunctions {
   'ghfs:hub-add-root': (path: string) => Promise<HubInfo>
   'ghfs:hub-remove-root': (path: string) => Promise<HubInfo>
   'ghfs:hub-recent-items': (limit?: number) => Promise<HubRecentItem[]>
+  'ghfs:hub-todos': () => Promise<HubTodoItem[]>
   'ghfs:hub-queue': () => Promise<HubQueueGroup[]>
   'ghfs:hub-execute-queue': (options: { projectId?: string }) => Promise<ExecutionResult[]>
   'ghfs:hub-settings': () => Promise<HubSettings>
   'ghfs:hub-set-settings': (patch: Partial<HubSettings>) => Promise<HubSettings>
+  'ghfs:hub-seen-history': () => Promise<Record<string, SeenEntry>>
 }
 
 export interface GhfsClientFunctions {
@@ -152,4 +220,19 @@ export interface GhfsClientFunctions {
   'ghfs:onRemoteStatusChange': (event: { projectId: string, status: RemoteStatus }) => void
   'ghfs:onProjectsChange': () => void
   'ghfs:onHubInfoChange': (event: HubInfo) => void
+}
+
+/**
+ * The card pile is a singleton synced via devframe's `sharedState` host so
+ * that page refreshes return to the same pile + progress. `pile === null`
+ * means no pile is loaded; otherwise it carries the full triage session.
+ */
+export interface CardsSharedState {
+  pile: CardsPileState | null
+}
+
+declare module 'devframe/types' {
+  interface DevToolsRpcSharedStates {
+    'ghfs:cards-pile': CardsSharedState
+  }
 }

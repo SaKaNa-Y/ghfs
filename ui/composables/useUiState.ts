@@ -1,4 +1,4 @@
-import type { UiState, UserOverride } from '#ghfs/server-types'
+import type { SeenEntry, UiState, UserOverride } from '#ghfs/server-types'
 import { useDebounceFn } from '@vueuse/core'
 import { diagnostics } from '../utils/logger'
 
@@ -24,6 +24,9 @@ function ensureSaver(): () => void {
       lastPrTab: uiState.lastPrTab,
       userOverride: uiState.userOverride ? { ...uiState.userOverride } : undefined,
       autoSyncIntervalMs: uiState.autoSyncIntervalMs,
+      todos: uiState.todos ? [...uiState.todos] : undefined,
+      ignored: uiState.ignored ? [...uiState.ignored] : undefined,
+      seenHistory: uiState.seenHistory ? { ...uiState.seenHistory } : undefined,
     }).catch((error) => {
       diagnostics.GHFS0900({ detail: String((error as Error)?.message ?? error), cause: error })
     })
@@ -62,6 +65,11 @@ export function useUiState() {
     uiState.lastPrTab = normalizePrTab(next?.lastPrTab)
     uiState.userOverride = normalizeUserOverride(next?.userOverride)
     uiState.autoSyncIntervalMs = typeof next?.autoSyncIntervalMs === 'number' ? next.autoSyncIntervalMs : undefined
+    uiState.todos = Array.isArray(next?.todos) ? [...next.todos] : undefined
+    uiState.ignored = Array.isArray(next?.ignored) ? [...next.ignored] : undefined
+    uiState.seenHistory = next?.seenHistory && typeof next.seenHistory === 'object'
+      ? { ...next.seenHistory }
+      : undefined
     hydrated = true
   }
 
@@ -122,6 +130,79 @@ export function useUiState() {
     ensureSaver()()
   }
 
+  function getTodos(): number[] {
+    return uiState.todos ?? []
+  }
+
+  function isTodo(number: number | null | undefined): boolean {
+    if (number == null)
+      return false
+    return uiState.todos?.includes(number) ?? false
+  }
+
+  function addTodo(number: number): void {
+    if (!Number.isInteger(number) || number <= 0)
+      return
+    const list = uiState.todos ? [...uiState.todos] : []
+    if (list.includes(number))
+      return
+    list.push(number)
+    uiState.todos = list
+    ensureSaver()()
+  }
+
+  function removeTodo(number: number): void {
+    const list = uiState.todos
+    if (!list || !list.includes(number))
+      return
+    uiState.todos = list.filter(n => n !== number)
+    ensureSaver()()
+  }
+
+  function getIgnored(): number[] {
+    return uiState.ignored ?? []
+  }
+
+  function isIgnored(number: number | null | undefined): boolean {
+    if (number == null)
+      return false
+    return uiState.ignored?.includes(number) ?? false
+  }
+
+  function addIgnored(number: number): void {
+    if (!Number.isInteger(number) || number <= 0)
+      return
+    const list = uiState.ignored ? [...uiState.ignored] : []
+    if (list.includes(number))
+      return
+    list.push(number)
+    uiState.ignored = list
+    ensureSaver()()
+  }
+
+  function removeIgnored(number: number): void {
+    const list = uiState.ignored
+    if (!list || !list.includes(number))
+      return
+    uiState.ignored = list.filter(n => n !== number)
+    ensureSaver()()
+  }
+
+  function getSeenEntry(key: string): SeenEntry | undefined {
+    return uiState.seenHistory?.[key]
+  }
+
+  function markSeen(key: string, entry: SeenEntry): void {
+    if (!key || !entry?.lastSeenAt)
+      return
+    const current = uiState.seenHistory ?? {}
+    const prev = current[key]
+    if (prev && prev.lastCommentId === entry.lastCommentId && prev.lastSeenAt === entry.lastSeenAt)
+      return
+    uiState.seenHistory = { ...current, [key]: entry }
+    ensureSaver()()
+  }
+
   return {
     uiState,
     helpOpen,
@@ -134,5 +215,15 @@ export function useUiState() {
     setLastPrTab,
     setUserOverride,
     setAutoSyncIntervalMs,
+    getTodos,
+    isTodo,
+    addTodo,
+    removeTodo,
+    getIgnored,
+    isIgnored,
+    addIgnored,
+    removeIgnored,
+    getSeenEntry,
+    markSeen,
   }
 }

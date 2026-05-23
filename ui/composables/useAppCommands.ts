@@ -61,6 +61,7 @@ export function createAppCommands(): Command[] {
   const { filteredItems } = useFilteredItems()
   const { upCount } = useQueue()
   const palette = useCommandPalette()
+  const cards = useCardsMode()
 
   function focusFirstHubCard(): void {
     const first = document.querySelector<HTMLButtonElement>('[data-testid="hub-project-card"]')
@@ -69,8 +70,15 @@ export function createAppCommands(): Command[] {
 
   const activeItem = computed(() => {
     const num = state.value.selectedNumber.value
-    if (num == null) return null
-    return state.value.payload.value?.syncState.items[String(num)]?.data.item ?? null
+    const fromActive = num == null
+      ? null
+      : state.value.payload.value?.syncState.items[String(num)]?.data.item ?? null
+    if (fromActive) return fromActive
+    // On the cards page treat the current card as the active item.
+    const card = cards.currentCard.value
+    if (!card) return null
+    const cardState = useAppState(card.projectId)
+    return cardState.payload.value?.syncState.items[String(card.number)]?.data.item ?? null
   })
 
   const route = useRoute()
@@ -348,7 +356,7 @@ export function createAppCommands(): Command[] {
       category: 'Tabs',
       icon: 'i-octicon-issue-opened-16',
       keybindings: ['i'],
-      when: '!searching',
+      when: '!searching && !onCardsPage',
       run: () => { state.value.filters.kind = 'issue' },
     },
     {
@@ -357,7 +365,7 @@ export function createAppCommands(): Command[] {
       category: 'Tabs',
       icon: 'i-octicon-git-pull-request-16',
       keybindings: ['p'],
-      when: '!searching',
+      when: '!searching && !onCardsPage',
       run: () => { state.value.filters.kind = 'pull' },
     },
 
@@ -408,13 +416,17 @@ export function createAppCommands(): Command[] {
     },
 
     // ─── Item ───────────────────────────────────────────────────────────
+    // These all act on the *active project's* selected item via queueClose /
+    // queueReopen / focusComment / labelEditorOpen. The cards page binds its
+    // own equivalents (cards.comment, cards.labels, …) on the same keys, so
+    // gate these with `!onCardsPage` to keep the two paths from colliding.
     {
       id: 'item.close',
       title: 'Queue: Close item',
       category: 'Item',
       icon: 'i-octicon-issue-closed-16',
       keybindings: ['c'],
-      when: 'hasActiveItem && activeItemState == "open"',
+      when: 'hasActiveItem && activeItemState == "open" && !onCardsPage',
       run: queueClose,
     },
     {
@@ -423,7 +435,7 @@ export function createAppCommands(): Command[] {
       category: 'Item',
       icon: 'i-octicon-issue-reopened-16',
       keybindings: ['r'],
-      when: 'hasActiveItem && activeItemState == "closed"',
+      when: 'hasActiveItem && activeItemState == "closed" && !onCardsPage',
       run: queueReopen,
     },
     {
@@ -432,7 +444,7 @@ export function createAppCommands(): Command[] {
       category: 'Item',
       icon: 'i-octicon-tag-16',
       keybindings: ['l'],
-      when: 'hasActiveItem',
+      when: 'hasActiveItem && !onCardsPage',
       run: () => { ui.labelEditorOpen.value = true },
     },
     {
@@ -441,8 +453,103 @@ export function createAppCommands(): Command[] {
       category: 'Item',
       icon: 'i-octicon-comment-16',
       keybindings: ['n'],
-      when: 'hasActiveItem',
+      when: 'hasActiveItem && !onCardsPage',
       run: focusComment,
+    },
+
+    // ─── Card pile ──────────────────────────────────────────────────────
+    {
+      id: 'cards.start',
+      title: 'Start a card pile',
+      category: 'Card pile',
+      icon: 'i-ph-cards-three-duotone',
+      keybindings: [{ key: 'shift+c' }],
+      when: '!onCardsPage',
+      run: () => cards.startFromCurrentContext(),
+    },
+    {
+      id: 'cards.dismiss',
+      title: 'Card pile: Dismiss',
+      category: 'Card pile',
+      icon: 'i-ph-trash-duotone',
+      when: 'onCardsPage && cardsHasCurrent',
+      help: 'onCardsPage',
+      run: async () => {
+        await cards.dismiss()
+        router.push('/')
+      },
+    },
+    {
+      id: 'cards.comment',
+      title: 'Card pile: Comment / close',
+      category: 'Card pile',
+      icon: 'i-octicon-comment-16',
+      keybindings: ['c'],
+      when: 'onCardsPage && cardsHasCurrent && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.doOpenComment(),
+    },
+    {
+      id: 'cards.todo',
+      title: 'Card pile: Toggle todo',
+      category: 'Card pile',
+      icon: 'i-ph-bookmark-simple-duotone',
+      keybindings: ['t'],
+      when: 'onCardsPage && cardsHasCurrent && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.doMarkTodo(),
+    },
+    {
+      id: 'cards.ignore',
+      title: 'Card pile: Toggle ignore',
+      category: 'Card pile',
+      icon: 'i-ph-eye-slash-duotone',
+      keybindings: ['i'],
+      when: 'onCardsPage && cardsHasCurrent && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.doMarkIgnore(),
+    },
+    {
+      id: 'cards.labels',
+      title: 'Card pile: Edit labels',
+      category: 'Card pile',
+      icon: 'i-octicon-tag-16',
+      keybindings: ['l'],
+      when: 'onCardsPage && cardsHasCurrent && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.doOpenLabels(),
+    },
+    {
+      id: 'cards.skip',
+      title: 'Card pile: Skip',
+      category: 'Card pile',
+      icon: 'i-ph-skip-forward-duotone',
+      keybindings: ['n'],
+      when: 'onCardsPage && cardsHasCurrent && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.doSkip(),
+    },
+    {
+      id: 'cards.previous',
+      title: 'Card pile: Previous card',
+      category: 'Card pile',
+      icon: 'i-ph-skip-back-duotone',
+      keybindings: [{ key: 'shift+n', label: ['⇧', 'N'] }],
+      when: 'onCardsPage && cardsCanGoBack && !cardsAdvancing && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => cards.goBack(),
+    },
+    {
+      id: 'cards.exit',
+      title: 'Card pile: Exit',
+      category: 'Card pile',
+      icon: 'i-ph-arrow-left-duotone',
+      when: 'onCardsPage && !cardsCommentDialogOpen && !labelEditorOpen',
+      help: 'onCardsPage',
+      run: () => {
+        cards.reset()
+        router.push('/')
+      },
     },
 
     // ─── PR detail tabs ─────────────────────────────────────────────────
@@ -510,6 +617,16 @@ export function createAppCommands(): Command[] {
       run: () => { router.push('/recent') },
     },
     {
+      id: 'hub.todo',
+      title: 'Hub: Open todo list',
+      category: 'Hub',
+      icon: 'i-ph-bookmark-simple-duotone',
+      keybindings: [{ key: 'shift+t' }],
+      when: 'hubMode && route != "/todo"',
+      help: 'hubMode',
+      run: () => { router.push('/todo') },
+    },
+    {
       id: 'hub.home',
       title: 'Hub: Open home',
       category: 'Hub',
@@ -517,6 +634,15 @@ export function createAppCommands(): Command[] {
       when: 'hubMode && route != "/"',
       help: 'hubMode',
       run: () => { router.push('/') },
+    },
+    {
+      id: 'hub.cards',
+      title: 'Hub: Open card pile',
+      category: 'Hub',
+      icon: 'i-ph-cards-three-duotone',
+      when: 'hubMode && cardsHasPile && route != "/cards"',
+      help: 'hubMode',
+      run: () => { router.push('/cards') },
     },
     {
       id: 'hub.execute-all',

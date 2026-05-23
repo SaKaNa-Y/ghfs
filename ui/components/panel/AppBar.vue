@@ -13,12 +13,16 @@ const hub = useHubState()
 const hubUi = useHubUiState()
 const router = useRouter()
 const route = useRoute()
-const { counts } = useFilteredItems()
+const { counts, filteredItems } = useFilteredItems()
 const { upCount } = useQueue()
 const { totalCount: hubQueueTotal } = useHubQueue()
 const recentFiltered = useRecentFiltered()
+const todos = useHubTodos()
+const cards = useCardsMode()
 
 const isHubMode = computed(() => hub.capabilities.value?.mode === 'hub')
+const cardsHasPile = computed(() => cards.total.value > 0)
+const onCardsPage = computed(() => route.path === '/cards')
 const repoName = computed(() => state.payload.value?.repo.repo ?? 'connecting…')
 const projectPath = computed(() => state.payload.value?.repo.projectPath ?? '')
 const hasToken = computed(() => state.payload.value?.repo.hasToken ?? false)
@@ -52,6 +56,7 @@ const searching = computed(() => state.filters.search.trim().length > 0)
 const queueBadge = computed(() => (props.mode === 'hub' ? hubQueueTotal.value : upCount.value))
 const showHubBack = computed(() => isHubMode.value && props.mode === 'project')
 const onRecentPage = computed(() => route.path === '/recent')
+const onTodoPage = computed(() => route.path === '/todo')
 
 const forceSyncDialogOpen = ref(false)
 
@@ -72,6 +77,22 @@ const syncTooltip = computed(() => {
 })
 
 const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : state.syncing.value))
+
+const cardsSource = computed(() => {
+  if (onTodoPage.value)
+    return todos.listItems.value
+  if (props.mode === 'hub' && onRecentPage.value)
+    return recentFiltered.filteredItems.value
+  return filteredItems.value
+})
+const cardsAvailable = computed(() => cardsSource.value.length > 0)
+const cardsTooltip = computed(() => {
+  const n = cardsSource.value.length
+  if (n === 0)
+    return 'No items to triage'
+  return `Start a card pile — triage ${Math.min(n, 10)} ${n === 1 ? 'item' : 'items'}`
+})
+
 </script>
 
 <template>
@@ -212,6 +233,32 @@ const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : 
             <span>Recent</span>
           </button>
         </UiWithCommand>
+        <UiWithCommand v-slot="{ execute, disabled }" command="hub.todo">
+          <button
+            type="button"
+            class="px-2.5 py-1.5 text-xs flex items-center gap-1.5 rounded transition outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+            :class="onTodoPage ? 'color-active font-medium bg-active' : 'color-muted hover:color-base'"
+            data-testid="navbar-hub-todo-link"
+            :disabled="disabled"
+            @click="execute"
+          >
+            <span class="i-ph-bookmark-simple-duotone" />
+            <span>Todo</span>
+          </button>
+        </UiWithCommand>
+        <UiWithCommand v-if="cardsHasPile" v-slot="{ execute, disabled }" command="hub.cards">
+          <button
+            type="button"
+            class="px-2.5 py-1.5 text-xs flex items-center gap-1.5 rounded transition outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+            :class="onCardsPage ? 'color-active font-medium bg-active' : 'color-muted hover:color-base'"
+            data-testid="navbar-hub-cards-link"
+            :disabled="disabled"
+            @click="execute"
+          >
+            <span class="i-ph-cards-three-duotone" />
+            <span>Cards</span>
+          </button>
+        </UiWithCommand>
       </nav>
 
       <template v-if="onRecentPage">
@@ -229,6 +276,22 @@ const syncing = computed(() => (props.mode === 'hub' ? hubUi.syncingAll.value : 
     <div class="flex-auto" />
 
     <div class="h-6 border-l border-base mx-1 flex-none" />
+
+    <UiWithCommand
+      v-if="mode === 'project' || onRecentPage || onTodoPage"
+      v-slot="{ execute, disabled }"
+      command="cards.start"
+      placement="badge"
+    >
+      <UiIconButton
+        icon="i-ph-cards-three-duotone"
+        :tooltip="cardsTooltip"
+        aria-label="Start a card pile"
+        data-testid="navbar-cards-mode"
+        :disabled="disabled || !cardsAvailable"
+        @click="execute"
+      />
+    </UiWithCommand>
 
     <UiWithCommand v-if="mode === 'project'" v-slot="{ execute, disabled }" command="action.sync" placement="badge">
       <UiIconButton

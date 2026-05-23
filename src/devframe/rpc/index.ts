@@ -18,8 +18,10 @@ import { hubQueue } from './hub-queue'
 import { hubRecentItems } from './hub-recent-items'
 import { hubRemoveRoot } from './hub-remove-root'
 import { hubScan } from './hub-scan'
+import { hubSeenHistory } from './hub-seen-history'
 import { hubSetSettings } from './hub-set-settings'
 import { hubSettings } from './hub-settings'
+import { hubTodos } from './hub-todos'
 import { initialPayload } from './initial-payload'
 import { listProjects } from './list-projects'
 import { openFolder } from './open-folder'
@@ -62,6 +64,7 @@ export const rpcFunctions = [
   hubQueue,
   hubExecuteQueue,
   hubRecentItems,
+  hubTodos,
   hubInfo,
   hubScan,
   hubEnable,
@@ -70,6 +73,7 @@ export const rpcFunctions = [
   hubRemoveRoot,
   hubSettings,
   hubSetSettings,
+  hubSeenHistory,
 ] as const
 
 export function registerGhfsRpc(ctx: DevToolsNodeContext): void {

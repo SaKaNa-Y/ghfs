@@ -2,15 +2,39 @@
 import type { QueueEntry } from '#ghfs/server-types'
 import type { SyncItemState } from '../../../src/types/sync-state'
 
+const props = withDefaults(defineProps<{
+  /** Override `state.selectedNumber` (used by cards mode). */
+  number?: number | null
+  /** Override the active project id (used by cards mode for cross-project rendering). */
+  projectId?: string | null
+  /** Compact mode hides the footer composer and the inline execute/discard bar. */
+  compact?: boolean
+  /** Show the project icon + owner/repo above the title. Enabled in cross-project views. */
+  showRepo?: boolean
+}>(), {
+  number: null,
+  projectId: null,
+  compact: false,
+  showRepo: false,
+})
+
 const activeId = useActiveProjectId()
-const state = useAppState()
+const effectiveProjectId = computed(() => props.projectId ?? activeId.value)
+provideDetailScope({ projectId: effectiveProjectId.value })
+
+const state = useAppState(props.projectId)
 const rpc = useRpc()
 const ui = useUiState()
+const seenHistory = useSeenHistory()
 const { currentUser } = useCurrentUser()
 const userOverrideOpen = ref(false)
 
+const effectiveNumber = computed<number | null>(() =>
+  props.number != null ? props.number : state.selectedNumber.value,
+)
+
 const selected = computed<SyncItemState | null>(() => {
-  const num = state.selectedNumber.value
+  const num = effectiveNumber.value
   if (num == null)
     return null
   return state.payload.value?.syncState.items[String(num)] ?? null
@@ -35,7 +59,7 @@ const prTab = computed<PrTab>({
   },
 })
 
-const pending = usePendingOps(computed(() => item.value?.number ?? null))
+const pending = usePendingOps(computed(() => item.value?.number ?? null), props.projectId)
 
 const effectiveState = computed<'open' | 'closed'>(() => {
   if (!item.value) return 'open'
@@ -62,6 +86,13 @@ const stateLabel = computed(() => {
 const kindLabel = computed(() => item.value?.kind === 'pull' ? 'pull request' : 'issue')
 const hasToken = computed(() => state.payload.value?.repo.hasToken ?? false)
 
+const repoProject = computed(() => {
+  const payload = state.payload.value
+  if (!payload)
+    return null
+  return { id: payload.projectId, repo: payload.repo.repo }
+})
+
 const titleText = computed(() => {
   const op = pending.pendingTitle.value?.op
   if (op && op.action === 'set-title')
@@ -71,105 +102,55 @@ const titleText = computed(() => {
 const titleIsPending = computed(() => !!pending.pendingTitle.value)
 const titleHtml = computed(() => renderMarkdownInline(titleText.value))
 
-const submitting = ref(false)
-const editingCommentId = ref<string | null>(null)
-const editingDraft = ref('')
-
-// Persistent draft for NEW comments — routed through .ghfs/.ui.json.
-// While editing a pending comment, we bind to `editingDraft` instead so
-// the edit doesn't clobber the persisted draft.
-const commentDraft = computed<string>({
-  get() {
-    if (editingCommentId.value)
-      return editingDraft.value
-    return ui.getDraft(item.value?.number)
-  },
-  set(value: string) {
-    if (editingCommentId.value) {
-      editingDraft.value = value
-      return
-    }
-    if (item.value?.number == null)
-      return
-    ui.setDraft(item.value.number, value)
-  },
-})
-
 const scrollContainer = ref<HTMLElement | null>(null)
+const composerRef = ref<{ startEditing: (entry: QueueEntry) => void } | null>(null)
 
-watch(() => state.selectedNumber.value, () => {
-  editingCommentId.value = null
-  editingDraft.value = ''
+watch(effectiveNumber, () => {
   nextTick(() => {
     if (scrollContainer.value)
       scrollContainer.value.scrollTop = 0
   })
 })
 
-const draftHasContent = computed(() => {
-  if (editingCommentId.value)
-    return false
-  return commentDraft.value.trim().length > 0
-})
-
-async function submitComment() {
-  if (submitting.value)
-    return
-  if (!item.value)
-    return
-  const body = (editingCommentId.value ? editingDraft.value : ui.getDraft(item.value.number)).trim()
-  if (!body)
-    return
-  submitting.value = true
-  state.setError(null)
-  try {
-    if (editingCommentId.value) {
-      const entry = pending.pendingComments.value.find(e => e.id === editingCommentId.value)
-      if (entry) {
-        const op = entry.op as { action: string, number: number, body: string }
-        await rpc.$call('ghfs:update-queue-op', activeId.value ?? '__default__', entry.id, { ...op, body } as typeof op)
+// Mark the currently-viewed item as "seen". Fires on initial mount, every
+// item switch, and whenever the comment count changes so a fresh sync that
+// lands while the user is still on the item updates the last-seen point
+// instead of leaving an old position behind.
+watch(
+  [effectiveNumber, effectiveProjectId, () => selected.value?.data.comments?.length ?? 0],
+  () => {
+    const num = effectiveNumber.value
+    const projectId = effectiveProjectId.value
+    const entry = selected.value
+    if (num == null || !projectId || !entry)
+      return
+    const comments = entry.data.comments ?? []
+    let lastCommentId: number | null = null
+    let latestAt = ''
+    for (const c of comments) {
+      if (!c.createdAt)
+        continue
+      if (c.createdAt > latestAt) {
+        latestAt = c.createdAt
+        lastCommentId = c.id
       }
-      editingCommentId.value = null
-      editingDraft.value = ''
     }
-    else {
-      await rpc.$call('ghfs:add-queue-op', activeId.value ?? '__default__', {
-        action: 'add-comment',
-        number: item.value.number,
-        body,
-      })
-      ui.clearDraft(item.value.number)
-    }
-  }
-  catch (error) {
-    state.setError((error as Error).message)
-  }
-  finally {
-    submitting.value = false
-  }
-}
+    seenHistory.markSeen(`${projectId}#${num}`, {
+      lastCommentId,
+      lastSeenAt: new Date().toISOString(),
+    })
+  },
+  { immediate: true },
+)
 
 function startEditingPendingComment(entry: QueueEntry) {
-  const op = entry.op as { body?: string }
-  editingDraft.value = op.body ?? ''
-  editingCommentId.value = entry.id
-  nextTick(() => {
-    const el = document.querySelector<HTMLTextAreaElement>('[data-shortcut="comment-draft"]')
-    el?.focus()
-  })
-}
-
-function cancelEditing() {
-  editingCommentId.value = null
-  editingDraft.value = ''
+  composerRef.value?.startEditing(entry)
 }
 
 async function removePendingComment(entry: QueueEntry) {
   state.setError(null)
   try {
-    await rpc.$call('ghfs:remove-queue-op', activeId.value ?? '__default__', entry.id)
-    if (editingCommentId.value === entry.id)
-      cancelEditing()
+    await rpc.$call('ghfs:remove-queue-op', effectiveProjectId.value ?? '__default__', entry.id)
   }
   catch (error) {
     state.setError((error as Error).message)
@@ -185,7 +166,7 @@ async function executeThisItem() {
   state.setError(null)
   state.setExecuting(true)
   try {
-    await rpc.$call('ghfs:execute-queue', activeId.value ?? '__default__', { entryIds: ids, continueOnError: true })
+    await rpc.$call('ghfs:execute-queue', effectiveProjectId.value ?? '__default__', { entryIds: ids, continueOnError: true })
   }
   catch (error) {
     state.setError(`Execute failed: ${(error as Error).message}`)
@@ -197,7 +178,7 @@ async function discardThisItem() {
   state.setError(null)
   for (const entry of pending.entries.value) {
     try {
-      await rpc.$call('ghfs:remove-queue-op', activeId.value ?? '__default__', entry.id)
+      await rpc.$call('ghfs:remove-queue-op', effectiveProjectId.value ?? '__default__', entry.id)
     }
     catch (error) {
       state.setError((error as Error).message)
@@ -224,6 +205,14 @@ async function discardThisItem() {
   </div>
 
   <article v-else class="h-full flex flex-col min-h-0 bg-base">
+    <div
+      v-if="showRepo && repoProject"
+      class="flex items-center gap-2 px-6 pt-3 pb-1 text-xs color-muted"
+      data-testid="detail-repo-line"
+    >
+      <DisplayProjectIcon :project="repoProject" :size="16" />
+      <span class="font-mono">{{ repoProject.repo }}</span>
+    </div>
     <header class="flex items-center gap-2 px-6 py-2.5 border-b border-base">
       <DisplayItemStateIcon :item="item" :pull="pullMeta" :pending="pending.direction.value" class="shrink-0" />
       <div class="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
@@ -315,24 +304,26 @@ async function discardThisItem() {
         </span>
         <span class="color-muted"> queued for this {{ kindLabel }}</span>
       </div>
-      <button
-        type="button"
-        class="btn-action-sm"
-        :disabled="state.executing.value || !hasToken"
-        :title="hasToken ? 'Execute the pending changes for this item only' : 'No GitHub token available'"
-        @click="executeThisItem"
-      >
-        <span :class="state.executing.value ? 'i-octicon-sync-16 animate-spin' : 'i-ph-play-duotone'" />
-        Execute
-      </button>
-      <button
-        type="button"
-        class="btn-action-sm"
-        @click="discardThisItem"
-      >
-        <span class="i-ph-trash-duotone" />
-        Discard
-      </button>
+      <template v-if="!compact">
+        <button
+          type="button"
+          class="btn-action-sm"
+          :disabled="state.executing.value || !hasToken"
+          :title="hasToken ? 'Execute the pending changes for this item only' : 'No GitHub token available'"
+          @click="executeThisItem"
+        >
+          <span :class="state.executing.value ? 'i-octicon-sync-16 animate-spin' : 'i-ph-play-duotone'" />
+          Execute
+        </button>
+        <button
+          type="button"
+          class="btn-action-sm"
+          @click="discardThisItem"
+        >
+          <span class="i-ph-trash-duotone" />
+          Discard
+        </button>
+      </template>
     </div>
 
     <TabsRoot
@@ -399,7 +390,7 @@ async function discardThisItem() {
       />
     </div>
 
-    <footer class="border-t border-base px-6 py-3 bg-base flex flex-col gap-2">
+    <footer v-if="!compact" class="border-t border-base px-6 py-3 bg-base flex flex-col gap-2">
       <div class="flex items-center gap-2 text-xs color-muted">
         <DisplayAuthor
           v-if="currentUser?.login"
@@ -418,73 +409,11 @@ async function discardThisItem() {
           @click="userOverrideOpen = true"
         />
       </div>
-      <div
-        class="border border-base rounded-lg bg-base transition"
-        :class="editingCommentId
-          ? 'ring-2 ring-yellow-500/60 border-yellow-500/60'
-          : 'focus-within:border-active focus-within:ring-2 focus-within:ring-primary-500/30'"
-      >
-        <div class="relative">
-          <textarea
-            v-model="commentDraft"
-            data-shortcut="comment-draft"
-            :placeholder="editingCommentId ? 'Editing pending comment…' : `Leave a comment on this ${kindLabel}`"
-            rows="3"
-            class="peer w-full bg-transparent outline-none px-3 py-2 text-sm resize-none font-sans"
-            @keydown.meta.enter.prevent.stop="submitComment"
-            @keydown.ctrl.enter.prevent.stop="submitComment"
-          />
-          <UiWithCommand
-            command="comment.focus"
-            tone="muted"
-            class="absolute bottom-2 right-2 pointer-events-none peer-focus:op0 transition-opacity"
-          />
-        </div>
-        <div class="flex items-center gap-2 px-2 py-1.5 border-t border-base">
-          <span v-if="editingCommentId" class="text-xs color-muted">Editing a queued comment</span>
-          <div class="flex-1" />
-          <button
-            v-if="editingCommentId"
-            type="button"
-            class="btn-action text-sm"
-            @click="cancelEditing"
-          >
-            Cancel
-          </button>
-          <UiWithCommand v-if="effectiveState === 'open'" v-slot="{ execute }" command="item.close">
-            <button
-              type="button"
-              class="btn-action text-sm"
-              @click="execute"
-            >
-              <span class="i-octicon-x-circle-16 color-red-500 dark:color-red-400" />
-              <span v-if="pending.direction.value === 'reopen'">Cancel reopen</span>
-              <span v-else-if="draftHasContent">Close with comment</span>
-              <span v-else>Close {{ kindLabel }}</span>
-            </button>
-          </UiWithCommand>
-          <UiWithCommand v-else v-slot="{ execute }" command="item.reopen">
-            <button
-              type="button"
-              class="btn-action text-sm"
-              @click="execute"
-            >
-              <span class="i-octicon-issue-opened-16 color-green-500 dark:color-green-400" />
-              {{ pending.direction.value === 'close' ? 'Cancel close' : `Reopen ${kindLabel}` }}
-            </button>
-          </UiWithCommand>
-          <button
-            class="btn-primary text-sm"
-            :disabled="!commentDraft.trim() || submitting"
-            @click="submitComment"
-          >
-            <span class="i-octicon-comment-16" />
-            <span v-if="editingCommentId">Update comment</span>
-            <span v-else>Comment</span>
-            <UiKbd keys="⌘ ↵" tone="muted" />
-          </button>
-        </div>
-      </div>
+      <PanelDetailComposer
+        ref="composerRef"
+        :number="item.number"
+        :kind="item.kind"
+      />
     </footer>
     <PanelDetailUserOverrideDialog v-model:open="userOverrideOpen" />
     <PanelDetailLabelEditor />

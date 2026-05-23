@@ -61,7 +61,7 @@ const bodySnippetHtml = computed(() => {
   <div class="border-b border-base">
  <button
     type="button"
-    class="group w-full text-left flex flex-col gap-1 px-3 py-2 text-sm transition-colors relative outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40"
+    class="group w-full text-left flex flex-col gap-1 px-3 py-2 text-sm transition-colors relative outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 overflow-hidden"
     :class="props.selected
       ? 'bg-primary-500/8 dark:bg-primary-400/8 border-l-2 border-l-primary-500 dark:border-l-primary-400 pl-[10px]'
       : 'hover:bg-active'"
@@ -70,8 +70,18 @@ const bodySnippetHtml = computed(() => {
     @click="emit('select', item)"
   >
     <div
+      v-if="item.activityBuckets && item.activityBuckets.length"
+      class="absolute inset-0 op-25 dark:op-20 pointer-events-none color-active"
+    >
+      <DisplayItemActivitySparkline
+        :points="item.activityBuckets"
+        :created-index="item.activityCreatedIndex"
+      />
+    </div>
+
+    <div
       v-if="showRepoName"
-      class="flex items-center gap-1.5 min-w-0 pl7"
+      class="relative z-1 flex items-center gap-1.5 min-w-0 pl7"
     >
       <DisplayProjectIcon
         :project="{ id: item.projectId, repo: item.repo }"
@@ -83,7 +93,7 @@ const bodySnippetHtml = computed(() => {
       </span>
     </div>
 
-    <div class="flex items-start gap-2.5">
+    <div class="relative z-1 flex items-start gap-2.5">
       <DisplayItemStateIcon
         :item="iconItem"
         :pull="iconPull"

@@ -20,7 +20,6 @@ export interface WhenContext extends Record<string, unknown> {
   labelEditorOpen: boolean
   queueOpen: boolean
   executeConfirmOpen: boolean
-  hubPickerOpen: boolean
   hubSettingsOpen: boolean
   hubQueueDrawerOpen: boolean
   hubExecuteAllConfirmOpen: boolean
@@ -77,7 +76,6 @@ export function useWhenContext(): ComputedRef<WhenContext> {
     const labelEditorOpen = ui.labelEditorOpen.value
     const queueOpen = state.value.queueOpen.value
     const executeConfirmOpen = state.value.executeConfirmOpen.value
-    const hubPickerOpen = hubUi.pickerOpen.value
     const hubSettingsOpen = hubUi.settingsOpen.value
     const hubQueueDrawerOpen = hubUi.queueDrawerOpen.value
     const hubExecuteAllConfirmOpen = hubUi.executeAllConfirmOpen.value
@@ -109,7 +107,6 @@ export function useWhenContext(): ComputedRef<WhenContext> {
       labelEditorOpen,
       queueOpen,
       executeConfirmOpen,
-      hubPickerOpen,
       hubSettingsOpen,
       hubQueueDrawerOpen,
       hubExecuteAllConfirmOpen,
@@ -121,7 +118,7 @@ export function useWhenContext(): ComputedRef<WhenContext> {
       // Escape via closeOnEscape, so propagating Escape to panel.close (which
       // would fall through to closing the queue etc.) just causes conflicts.
       anyOverlayOpen: helpOpen || labelEditorOpen || queueOpen
-        || executeConfirmOpen || hubPickerOpen
+        || executeConfirmOpen
         || hubSettingsOpen || hubQueueDrawerOpen
         || hubExecuteAllConfirmOpen,
       onCardsPage,

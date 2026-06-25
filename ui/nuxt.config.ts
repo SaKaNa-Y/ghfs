@@ -1,6 +1,7 @@
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { nostics, nosticsServer } from 'nostics/unplugin'
+import { nosticsCollector } from '@nostics/unplugin/dev-server-collector'
+import { nosticsStrip } from '@nostics/unplugin/strip-transform'
 import { dirname, resolve } from 'pathe'
 
 const rootDir = dirname(fileURLToPath(import.meta.url))
@@ -59,8 +60,8 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [
-      nostics.vite(),
-      nosticsServer.vite({ logFile: resolve(rootDir, '../.diagnostics.log') }),
+      nosticsStrip.vite(),
+      nosticsCollector.vite({ logFile: resolve(rootDir, '../.diagnostics.log') }),
     ],
     optimizeDeps: {
       include: [

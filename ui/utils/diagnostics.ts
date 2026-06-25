@@ -1,10 +1,7 @@
-import type { Diagnostic } from 'nostics'
-import { defineDiagnostics, reporterLog } from 'nostics'
-import { devReporter } from 'nostics/reporters/dev'
+import { createConsoleReporter, defineDiagnostics } from 'nostics'
+import { createDevReporter } from 'nostics/reporters/dev'
 
-const reporterError = (d: Diagnostic) => reporterLog(d, { method: 'error' })
-
-export const diagnostics = defineDiagnostics({
+export const diagnostics = /*#__PURE__*/ defineDiagnostics({
   docsBase: code => `https://github.com/antfu/ghfs/blob/main/docs/errors/${code.toLowerCase()}.md`,
   codes: {
     // UI errors (E0900–E0949)
@@ -20,5 +17,5 @@ export const diagnostics = defineDiagnostics({
       why: (p: { detail: string }) => `uiState hydrate skipped: ${p.detail}`,
     },
   },
-  reporters: [reporterError, devReporter],
+  reporters: [/*#__PURE__*/ createConsoleReporter({ method: 'error' }), /*#__PURE__*/ createDevReporter()],
 })

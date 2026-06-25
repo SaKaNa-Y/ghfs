@@ -19,57 +19,58 @@ packages:
   - ui
 overrides:
   chokidar: ^5.0.0
-  semver: ^7.8.1
+  semver: ^7.8.5
 catalog:
-  '@antfu/eslint-config': ^9.0.0
-  '@clack/prompts': ^1.4.0
-  '@iconify-json/carbon': ^1.2.22
-  '@iconify-json/octicon': ^1.2.25
+  '@antfu/eslint-config': ^9.1.0
+  '@clack/prompts': ^1.6.0
+  '@iconify-json/carbon': ^1.2.23
+  '@iconify-json/octicon': ^1.2.28
   '@iconify-json/ph': ^1.2.2
   '@iconify-json/ri': ^1.2.10
+  '@nostics/unplugin': ^1.1.0
   '@octokit/plugin-retry': ^8.1.0
   '@octokit/plugin-throttling': ^11.0.3
-  '@playwright/test': ^1.60.0
-  '@tanstack/vue-virtual': ^3.13.26
-  '@types/node': ^25.9.1
-  '@unocss/nuxt': ^66.7.0
-  '@unocss/preset-web-fonts': ^66.7.0
-  '@unocss/reset': ^66.7.0
+  '@playwright/test': ^1.61.1
+  '@tanstack/vue-virtual': ^3.13.29
+  '@types/node': ^26.0.1
+  '@unocss/nuxt': ^66.7.2
+  '@unocss/preset-web-fonts': ^66.7.2
+  '@unocss/reset': ^66.7.2
   '@vitest/coverage-v8': 4.0.18
   '@vueuse/core': ^14.3.0
-  ansis: ^4.3.0
+  ansis: ^4.3.1
   bumpp: ^11.1.0
   cac: ^7.0.0
   colorjs.io: ^0.6.1
-  devframe: ^0.5.2
+  devframe: ^0.5.4
   dotenv: ^17.4.2
-  eslint: ^10.4.0
+  eslint: ^10.5.0
   floating-vue: ^5.2.2
   jiti: ^2.7.0
-  lint-staged: ^17.0.5
-  marked: ^18.0.4
-  nostics: ^0.2.0
-  nuxt: ^4.4.6
+  lint-staged: ^17.0.8
+  marked: ^18.0.5
+  nostics: ^1.1.4
+  nuxt: ^4.4.8
   octokit: ^5.0.5
   ohash: ^2.0.11
   open: ^11.0.0
   parse-diff: ^0.12.0
   pathe: ^2.0.3
-  portless: ^0.13.1
-  reka-ui: ^2.9.8
-  shiki: ^4.1.0
+  portless: ^0.15.0
+  reka-ui: ^2.10.0
+  shiki: ^4.2.0
   simple-git-hooks: ^2.13.1
-  skills-npm: ^1.1.1
+  skills-npm: ^1.2.0
   splitpanes: ^4.1.2
-  tsdown: ^0.22.0
-  tsx: ^4.22.3
+  tsdown: ^0.22.3
+  tsx: ^4.22.4
   typescript: ^6.0.3
   unimport: ^6.3.0
-  unocss: ^66.7.0
+  unocss: ^66.7.2
   valibot: ^1.4.1
-  vitest: ^4.1.7
-  vue-data-ui: ^3.20.10
-  vue-tsc: ^3.3.2
+  vitest: ^4.1.9
+  vue-data-ui: ^3.22.0
+  vue-tsc: ^3.3.5
   whenexpr: ^0.1.2
   yaml: ^2.9.0
 onlyBuiltDependencies:

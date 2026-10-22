@@ -1,6 +1,7 @@
 import type { DevframeDefinition } from 'devframe/types'
-import { defineDevframe } from 'devframe/types'
+import { defineDevframe } from 'devframe'
 import { join } from 'pathe'
+import pkg from '../../package.json' with { type: 'json' }
 import { distDir } from '../dir'
 import { setupHubMode } from './hub-mode'
 import { setupUiMode } from './ui-mode'
@@ -28,17 +29,21 @@ let activeClose: (() => Promise<void>) | undefined
 export const ghfsDevframe: DevframeDefinition = defineDevframe({
   id: 'ghfs',
   name: 'ghfs',
+  version: pkg.version,
+  packageName: pkg.name,
+  homepage: pkg.homepage,
+  description: pkg.description,
+  importMetaUrl: import.meta.url,
   icon: 'octicon:mark-github-16',
   basePath: '/',
+  clientAssets: join(distDir, 'ui'),
   cli: {
     command: 'ghfs',
     port: 7710,
     host: '127.0.0.1',
-    distDir: join(distDir, 'ui'),
     // Single-user localhost tool — skip the RPC trust handshake.
     auth: false,
   },
-  spa: { loader: 'none' },
   async setup(ctx, info) {
     const flags = (info?.flags ?? {}) as unknown as GhfsDevframeFlags
     if (flags.mode === 'hub') {

@@ -75,6 +75,13 @@ function ensureClient(): Promise<DevframeRpcClient> {
   // request resolves to the same JSON without any proxy.
   clientPromise = (async () => {
     const meta = await fetch('/__connection.json').then(r => r.json())
+    // devframe advertises relative paths (`__ws`); the SPA uses deep-link
+    // routes, so pin them to the origin root instead of the current page.
+    for (const key of ['websocket', 'sse'] as const) {
+      const path = meta[key]?.path
+      if (typeof path === 'string' && !path.startsWith('/') && !/^\w+:/.test(path))
+        meta[key].path = `/${path}`
+    }
     const client = await connectDevframe({ connectionMeta: meta })
     // `connectDevframe` builds an empty client RPC host; re-register the
     // ghfs:on* broadcast handlers that the old `createRpcClient` accepted

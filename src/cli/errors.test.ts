@@ -36,7 +36,7 @@ describe('withErrorHandling', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const handler = withErrorHandling(async () => {
-      const d = new Diagnostic({ why: 'bare diagnostic' })
+      const d = new Diagnostic({ code: 'TEST_E0001', why: 'bare diagnostic' })
       d.name = 'TEST_E0001'
       throw d
     })

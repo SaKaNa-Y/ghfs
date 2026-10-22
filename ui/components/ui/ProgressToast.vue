@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SyncStage } from '#ghfs/sync-contracts'
 import { computed } from 'vue'
-import { useTimestamp } from '@vueuse/core'
+import { useIntervalFn, useTimestamp } from '@vueuse/core'
 import { useAppState } from '../../composables/useAppState'
 import type { ProgressState } from '../../composables/useAppState'
 import UiIconButton from './IconButton.vue'
@@ -47,7 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 // Tick the clock once a second so the elapsed timer updates while running.
-const tick = useTimestamp({ interval: 1000 })
+const tick = useTimestamp({ scheduler: cb => useIntervalFn(cb, 1000) })
 
 const elapsedMs = computed(() => {
   const startedAt = progress.value?.startedAt
